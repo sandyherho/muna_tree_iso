@@ -1,45 +1,62 @@
 #!/usr/bin/env python
-
 """
 fig2.py
 
-Create ts stackplot for 3 cores
+Plotting 3 raw d18O ts into a single panel
 
-SHSH <sandy.herho@email.ucr.edu>
-08/25/23
+SHSH <sandy.herho@ucr.edu>
+08/26/23
 """
 
 # import libs & settings
-import pyleoclim as pyleo
 import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
-import warnings
-plt.rcParams['figure.figsize'] = [20, 15]
 plt.rcParams["figure.dpi"] = 700
-warnings.filterwarnings("ignore")
-
+plt.style.use("ggplot")
 
 # read data
-df1 = pd.read_csv("../data/raw_data/cleantg01c.csv") 
-df2 = pd.read_csv("../data/raw_data/cleantg11a.csv")
-df3 = pd.read_csv("../data/raw_data/cleanmun63.csv")
+tg01c = pd.read_csv("../data/raw_data/cleantg01c.csv")[["date", "o18"]]
+tg11a = pd.read_csv("../data/raw_data/cleantg11a.csv")[["date", "o18"]]
+mun63 = pd.read_csv("../data/raw_data/cleanmun63.csv")[["date", "o18"]]
 
-# create mts pyleo obj
-tg01c = pyleo.Series(time =  df1['date'], value = df1["o18"],
-                  time_name = 'Year', value_name = '$\delta^{18}$O of tg01c',
-                  time_unit = 'CE', value_unit = '‰, VSMOW')
+# descriptive stats
+## each series
+median = [tg01c["o18"].quantile(.5), tg11a["o18"].quantile(.5), mun63["o18"].quantile(.5)]
+median = np.array(median).round(2)
+print("median of each series: ", median)
 
-tg11a = pyleo.Series(time =  df2['date'], value = df2["o18"],
-                  time_name = 'Year', value_name = '$\delta^{18}$O of tg11a',
-                  time_unit = 'CE', value_unit = '‰, VSMOW')
+tg01c_ci = tg01c["o18"].quantile([2.5/100, 97.5/100]).to_numpy()
+tg11a_ci = tg11a["o18"].quantile([2.5/100, 97.5/100]).to_numpy()
+mun63_ci = mun63["o18"].quantile([2.5/100, 97.5/100]).to_numpy()
+ci = np.vstack([tg01c_ci, tg11a_ci, mun63_ci]).round(2)
+print("ci of each series: ", ci)
 
-mun63 = pyleo.Series(time =  df3['date'], value = df3["o18"],
-                  time_name = 'Year', value_name = '$\delta^{18}$O of mun63',
-                  time_unit = 'CE', value_unit = '‰, VSMOW')
+## anomaly
+var_tg01c = tg01c["o18"].to_numpy() - tg01c["o18"].mean()
+var_tg11a = tg11a["o18"].to_numpy() - tg11a["o18"].mean()
+var_mun63 = mun63["o18"].to_numpy() - mun63["o18"].mean()
 
-mun = pyleo.MultipleSeries([tg01c, tg11a, mun63], name="Muna $\delta^{18}O_c$ time series")
+med_var = np.round(np.array([np.median(var_tg01c), np.median(var_tg11a), np.median(var_mun63)]), 2)
+print("median of anomaly: ", med_var)
 
-# savefig
-mun.stackplot()
-plot = plt.gcf()
-plot.savefig("../figs/fig2.png")
+upper = np.array([np.percentile(var_tg01c, 97.5), np.percentile(var_tg11a, 97.5), np.percentile(var_mun63, 97.5)]).round(2)
+lower = np.array([np.percentile(var_tg01c, 2.5), np.percentile(var_tg11a, 2.5), np.percentile(var_mun63, 2.5)]).round(2)
+print("upper ci anomaly: ", upper)
+print("lower ci anomaly: ", lower)
+
+plt.plot(tg01c["date"], tg01c["o18"], color="#eb4034",
+        ls="--", label="tg01c", alpha=0.85);
+plt.plot(tg11a["date"], tg11a["o18"], color="#31b561",
+         ls="--", label="tg11a", alpha=0.85);
+plt.plot(mun63["date"], mun63["o18"], color="#23529e", 
+         ls="--", label="mun6.3", alpha=0.85);
+x = [1663]
+y = [27.33]
+plt.errorbar(x,y, yerr=0.8, fmt="o", color="k", capsize=4)
+plt.ylabel("$\delta^{18}$O [‰, VSMOW]", size=16);
+plt.xlabel("time [years CE]", size=16);
+plt.ylim(18, 33);
+plt.xlim(1650, 2000);
+plt.legend();
+plt.savefig("../figs/fig2.png");
